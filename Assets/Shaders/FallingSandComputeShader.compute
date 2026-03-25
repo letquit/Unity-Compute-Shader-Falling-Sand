@@ -1,0 +1,115 @@
+/c++
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Initialize
+#pragma kernel SandFall
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> sandRT;
+float posX;
+float posY;
+float range;
+bool spawnSand;
+bool rightFirst;
+float4 color;
+
+/**
+ * @brief 初始化沙粒纹理，将所有像素设置为零值
+ * 
+ * @param id 线程调度的三维ID，其中xy分量用于定位纹理坐标
+ * @return void 无返回值
+ */
+[numthreads(8,8,1)]
+void Initialize (uint3 id : SV_DispatchThreadID)
+{
+    sandRT[id.xy] = float4(0, 0, 0, 0);
+}
+
+/**
+ * @brief 模拟沙粒下落物理效果的计算着色器
+ * 
+ * @param id 线程调度的三维ID，其中xy分量用于定位纹理坐标
+ * @return void 无返回值
+ */
+[numthreads(8,8,1)]
+void SandFall (uint3 id : SV_DispatchThreadID)
+{
+    float distance = sqrt((id.x - posX) * (id.x - posX) + (id.y - posY) * (id.y - posY));
+
+    // 检查当前点是否在指定范围内且需要生成沙粒
+    if (distance < range && spawnSand)
+    {
+        sandRT[id.xy] = color;
+    }
+
+    // Cell is unoccupied, return
+    if (sandRT[id.xy].x <= 0 &&
+        sandRT[id.xy].y <= 0 &&
+        sandRT[id.xy].z <= 0)
+    {
+        return;
+    }
+
+    // Adds floor to image
+    if (id.y <= 0)
+    {
+        return;
+    }
+
+    // 检查下方单元格是否有空间，如果有则向下移动沙粒
+    if (sandRT[id.xy + uint2(0, -1)].x <= 0 &&
+        sandRT[id.xy + uint2(0, -1)].y <= 0 &&
+        sandRT[id.xy + uint2(0, -1)].z <= 0)
+    {
+        sandRT[id.xy] = float4(0, 0, 0, 0);
+        sandRT[id.xy + uint2(0, -1)] = color;
+        return;
+    }
+
+    // 根据rightFirst标志决定沙粒移动的优先方向（向右或向左）
+    if (rightFirst)
+    {
+        // 尝试向右下方移动沙粒
+        if (sandRT[id.xy + uint2(1, -1)].x <= 0 &&
+            sandRT[id.xy + uint2(1, -1)].y <= 0 &&
+            sandRT[id.xy + uint2(1, -1)].z <= 0)
+        {
+            sandRT[id.xy] = float4(0, 0, 0, 0);
+            sandRT[id.xy + uint2(1, -1)] = color;
+            return;            
+        }
+        
+        // 尝试向左下方移动沙粒
+        if (sandRT[id.xy + uint2(-1, -1)].x <= 0 &&
+            sandRT[id.xy + uint2(-1, -1)].y <= 0 &&
+            sandRT[id.xy + uint2(-1, -1)].z <= 0)
+        {
+            sandRT[id.xy] = float4(0, 0, 0, 0);
+            sandRT[id.xy + uint2(-1, -1)] = color;
+            return;            
+        }
+    }
+    else
+    {
+        // 尝试向左下方移动沙粒
+        if (sandRT[id.xy + uint2(-1, -1)].x <= 0 &&
+            sandRT[id.xy + uint2(-1, -1)].y <= 0 &&
+            sandRT[id.xy + uint2(-1, -1)].z <= 0)
+        {
+            sandRT[id.xy] = float4(0, 0, 0, 0);
+            sandRT[id.xy + uint2(-1, -1)] = color;
+            return;            
+        }
+        
+        // 尝试向右下方移动沙粒
+        if (sandRT[id.xy + uint2(1, -1)].x <= 0 &&
+            sandRT[id.xy + uint2(1, -1)].y <= 0 &&
+            sandRT[id.xy + uint2(1, -1)].z <= 0)
+        {
+            sandRT[id.xy] = float4(0, 0, 0, 0);
+            sandRT[id.xy + uint2(1, -1)] = color;
+            return;            
+        }
+    }
+}
+
